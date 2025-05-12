@@ -298,6 +298,6 @@ if __name__ == "__main__":
         # Correcta visualización en Windows
         if os.name == "nt":
             from ctypes import windll
-        windll.shcore.SetProcessDpiAwareness(1)
+            windll.shcore.SetProcessDpiAwareness(1)
     finally:
         root.mainloop()
