@@ -72,6 +72,9 @@ class GUI:
         self.btn_fin_pausa = tk.Button(self.outer_frame, text="Fin de la pausa", command=self.fin_pausa, state="disabled")
         self.btn_fin_pausa.pack(pady=5)
 
+        self.btn_actualizar_graficas = tk.Button(self.outer_frame, text="Actualizar Gráficas", command=self.actualizar_graficas)
+        self.btn_actualizar_graficas.pack(pady=50, fill=tk.Y)
+
         # Hilo para temporizador
         self.hilo = threading.Thread(target=self.temporizador, daemon=True)
         self.hilo.start()
@@ -141,22 +144,36 @@ class GUI:
 
         # Función para agregar el canvas a un tab
         def agregar_canvas(fig, tab_title):
-            tab_frame = ttk.Frame(self.notebook)
+            # Buscar si ya existe una pestaña con ese título
+            existing_tabs = self.notebook.tabs()
+            tab_frame = None
+
+            for tab_id in existing_tabs:
+                if self.notebook.tab(tab_id, 'text') == tab_title:
+                    tab_frame = self.notebook.nametowidget(tab_id)
+                    break
+
+            # Si no existe, crear una nueva pestaña con su frame
+            if tab_frame is None:
+                tab_frame = ttk.Frame(self.notebook)
+                self.notebook.add(tab_frame, text=tab_title)
+            else:
+                # Si ya existe, destruir su contenido anterior
+                for widget in tab_frame.winfo_children():
+                    widget.destroy()
+
+            # Crear y añadir el nuevo canvas
             canvas = FigureCanvasTkAgg(fig, master=tab_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-            self.notebook.add(tab_frame, text=tab_title)
-            return canvas
 
         # Agregar los canvas al notebook
-        if hasattr(self, 'canvas_graficas'):
-            for canvas in self.canvas_graficas:
-                canvas.destroy()
-        else:
-            self.canvas_graficas = []
-        self.canvas_graficas[0] = agregar_canvas(fig1, 'Tiempo hasta pausa')
-        self.canvas_graficas[1] = agregar_canvas(fig2, 'Duración de la pausa')
-        self.canvas_graficas[2] = agregar_canvas(fig3, 'Cumplimiento')
+        agregar_canvas(fig1, 'Tiempo hasta pausa')
+        agregar_canvas(fig2, 'Duración de la pausa')
+        agregar_canvas(fig3, 'Cumplimiento')
+
+    def actualizar_graficas(self):
+        self.generar_graficas_pausas()
 
     def store_current_session(self):
         # Obtener la hora actual y guardarla en la tabla settings dentro de un bloque with
