@@ -146,11 +146,17 @@ class GUI:
             canvas.draw()
             canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
             self.notebook.add(tab_frame, text=tab_title)
+            return canvas
 
         # Agregar los canvas al notebook
-        agregar_canvas(fig1, 'Tiempo hasta pausa')
-        agregar_canvas(fig2, 'Duración de la pausa')
-        agregar_canvas(fig3, 'Cumplimiento')
+        if hasattr(self, 'canvas_graficas'):
+            for canvas in self.canvas_graficas:
+                canvas.destroy()
+        else:
+            self.canvas_graficas = []
+        self.canvas_graficas[0] = agregar_canvas(fig1, 'Tiempo hasta pausa')
+        self.canvas_graficas[1] = agregar_canvas(fig2, 'Duración de la pausa')
+        self.canvas_graficas[2] = agregar_canvas(fig3, 'Cumplimiento')
 
     def store_current_session(self):
         # Obtener la hora actual y guardarla en la tabla settings dentro de un bloque with
