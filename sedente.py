@@ -15,69 +15,122 @@ import os
 
 class GUI:
     def __init__(self, root):
+        self.stop_event = threading.Event()
+
         self.root = root
         self.root.title("Sedente")
         
-        # Dichoso icono
+        # Configuración del tema oscuro
+        self.root.configure(bg='#1a1a1a')
+        style = ttk.Style()
+        style.theme_use('clam')  # Tema más moderno
+        style.configure('TNotebook', background='#1a1a1a')
+        style.configure('TNotebook.Tab', background='#2d2d2d', foreground='white')
+        style.map('TNotebook.Tab', background=[('selected', '#3d3d3d')])
+        style.configure('TFrame', background='#1a1a1a')
+        style.configure('TLabel', background='#1a1a1a', foreground='white')
+        style.configure('TButton', background='#2d2d2d', foreground='white')
+        style.map('TButton', background=[('active', '#3d3d3d')])
+        
+        # Icono
         im = Image.open('icono.png')
         photo = ImageTk.PhotoImage(im)
         root.wm_iconphoto(True, photo)
         
-        
-        window_width = 635      # 435
-        window_height = 515     # 315
-
-        root.geometry(f'{window_width}x{window_height}')
-
+        window_width = 735
+        window_height = 615
+        self.root.geometry(f'{window_width}x{window_height}')
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        # Crear dos pestañas
+        # Notebook con pestañas
         self.notebook = ttk.Notebook(root)
-        self.notebook.pack(expand=True, fill='both')
+        self.notebook.pack(expand=True, fill='both', padx=10, pady=0)
         
-        # self.outer_frame será la pestaña1
-        self.outer_frame = tk.Frame(self.notebook)
-        self.outer_frame.pack(padx=35, pady=35, expand=True, fill="both")
+        # Pestaña Sesión
+        self.outer_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.outer_frame, text="Sesión")
+        
+        # Pestañas de gráficas
+        #self.graficas_tiempo = ttk.Frame(self.notebook)
+        #self.notebook.add(self.graficas_tiempo, text="Tiempo hasta la pausa")
+        
+        #self.graficas_duracion = ttk.Frame(self.notebook)
+        #self.notebook.add(self.graficas_duracion, text="Duración de la pausa")
+        
+        #self.graficas_cumplimiento = ttk.Frame(self.notebook)
+        #self.notebook.add(self.graficas_cumplimiento, text="Cumplimiento")
 
-        # self.graficas será la pestaña2
-        # self.graficas = tk.Frame(self.notebook)
-        # self.notebook.add(self.graficas, text="Gráficas")
-
-        # Inicializamos la base de datos
+        # Inicializar base de datos
         self.db = Database("sedente.db")
         self.db.init()
         self.session_model = SessionModel(self.db)
         self.break_model = BreakModel(self.db)
         self.generar_graficas_pausas()
 
-        # Preparamos la sesión
-        self.estado = "trabajo"  # "trabajo", "pausa", "esperando_pausa"
+        # Estado de la sesión
+        self.estado = "trabajo"
         self.check_last_session()
-        # self.inicio_sesion = datetime.now()
         self.inicio_pausa = None
         self.siguiente_pausa = self.inicio_sesion + timedelta(hours=2)
 
-        # Widgets
-        self.label_tiempo = tk.Label(self.outer_frame, text="", font=("Helvetica", 18))
+        # Widgets en la pestaña Sesión
+        self.label_tiempo = ttk.Label(
+            self.outer_frame,
+            text="",
+            font=('Helvetica', 18, 'bold'),
+            style='TLabel'
+        )
         self.label_tiempo.pack(pady=(100,10))
 
-        self.label_estado = tk.Label(self.outer_frame, text="Estado: Trabajo", font=("Helvetica", 12))
+        self.label_estado = ttk.Label(
+            self.outer_frame,
+            text="Estado: Trabajo",
+            font=('Helvetica', 12, 'bold'),
+            style='TLabel'
+        )
         self.label_estado.pack(pady=5)
 
-        self.btn_pausar = tk.Button(self.outer_frame, text="Hacer pausa ahora", command=self.iniciar_pausa)
-        self.btn_pausar.pack(pady=5)
+        # Botones en un frame separado
+        self.frame_botones = ttk.Frame(self.outer_frame, style='TFrame')
+        self.frame_botones.pack(pady=20)
+        
+        self.btn_pausar = ttk.Button(
+            self.frame_botones,
+            text="Hacer pausa ahora",
+            command=self.iniciar_pausa,
+            style='TButton'
+        )
+        self.btn_pausar.pack(side=tk.LEFT, padx=5)
+        
+        self.btn_fin_pausa = ttk.Button(
+            self.frame_botones,
+            text="Fin de la pausa",
+            command=self.fin_pausa,
+            state="disabled",
+            style='TButton'
+        )
+        self.btn_fin_pausa.pack(side=tk.RIGHT, padx=5)
 
-        self.btn_fin_pausa = tk.Button(self.outer_frame, text="Fin de la pausa", command=self.fin_pausa, state="disabled")
-        self.btn_fin_pausa.pack(pady=5)
+        # Contenedor para el botón de actualizar gráficas
+        self.frame_actualizar = ttk.Frame(self.outer_frame, style='TFrame')
+        self.frame_actualizar.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
-        self.btn_actualizar_graficas = tk.Button(self.outer_frame, text="Actualizar Gráficas", command=self.actualizar_graficas)
-        self.btn_actualizar_graficas.pack(pady=50, fill=tk.Y)
+        # Botón de actualizar gráficas en la parte inferior
+        self.btn_actualizar_graficas = ttk.Button(
+            self.frame_actualizar,
+            text="🔄 Actualizar Gráficas",
+            command=self.actualizar_graficas,
+            style='TButton'
+        )
+        self.btn_actualizar_graficas.pack(fill=tk.X, padx=10, pady=5)
 
-        # Hilo para temporizador
-        self.hilo = threading.Thread(target=self.temporizador, daemon=True)
-        self.hilo.start()
+        # Temporizador
+        self.temporizador_id = None
+        self.iniciar_temporizador()
+
+    def iniciar_temporizador(self):
+        self.temporizador_id = self.root.after(1000, self.temporizador)
     
     def generar_graficas_pausas(self):
         rows = []
@@ -224,6 +277,12 @@ class GUI:
 
     def on_close(self):
         self.store_current_session()
+        self.stop_event.set()
+
+        if self.temporizador_id is not None:
+            self.root.after_cancel(self.temporizador_id)
+        
+        self.root.quit()
         self.root.destroy()
 
     def actualizar_reloj(self):
@@ -238,13 +297,15 @@ class GUI:
             self.label_tiempo.config(text=f"Pausa: {minutos:02d}:{segundos:02d}")
 
     def temporizador(self):
-        while True:
-            self.root.after(0, self.actualizar_reloj)
+        if self.stop_event.is_set():
+            return
 
-            if self.estado == "trabajo" and datetime.now() >= self.siguiente_pausa:
-                self.root.after(0, self.mostrar_ventana_pausa)
+        self.root.after(0, self.actualizar_reloj)
 
-            time.sleep(1)
+        if self.estado == "trabajo" and datetime.now() >= self.siguiente_pausa:
+            self.mostrar_ventana_pausa()
+
+        self.temporizador_id = self.root.after(1000, self.temporizador)
 
     def aviso_voz(self):
         # Reproducir el aviso
